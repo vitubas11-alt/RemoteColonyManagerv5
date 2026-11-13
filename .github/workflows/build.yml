@@ -1,0 +1,42 @@
+name: Build JAR
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Preparar projeto
+        run: |
+          if [ ! -f build.gradle ]; then
+            Z=$(ls *.zip | head -n 1)
+            mkdir proj && unzip -q "$Z" -d proj
+            D=$(dirname "$(find proj -name build.gradle | head -n 1)")
+            echo "PROJ=$D" >> $GITHUB_ENV
+          else
+            echo "PROJ=." >> $GITHUB_ENV
+          fi
+      - name: Compilar
+        working-directory: ${{ env.PROJ }}
+        env:
+          GRADLE_OPTS: -Xmx3g
+        run: |
+          chmod +x gradlew
+          ./gradlew build --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remotecolonymanager-jar
+          path: ${{ env.PROJ }}/build/libs/*.jar
+      - name: Publicar em Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          files: ${{ env.PROJ }}/build/libs/*.jar
